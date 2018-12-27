@@ -74,7 +74,8 @@
                 var sy = Math.abs(this.deltaYFrom($gamePlayer.y));
                 if ((sx + sy) == 1) {
                     this._eventEnemyTouching += 1;
-                    if (Input.isTriggered('ok')) {  
+                    var _weaponId = $gameActors.actor(1)._equips[0]._itemId;
+                    if (Input.isTriggered('ok') && _weaponId > 0) {  
                         this.requestAnimation(6);
                         AudioManager.playSe({
                             name: 'MDSFX_FoeAtk_1_0',
@@ -90,7 +91,7 @@
                         this.setTransparent(false);
                         this.setTransparent(true);
                         this.setTransparent(false);
-                        var _dmg = $dataWeapons[$gameActors.actor(1)._equips[0]._itemId].params[2];
+                        var _dmg = $dataWeapons[_weaponId].params[2];
                         this._eventEnemyHp -= _dmg;
                         //$dataMap.events[this._eventId]._eventEnemyHp -= _dmg;
                     } else {
