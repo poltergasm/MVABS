@@ -21,11 +21,19 @@
 
         if (this.isEnemy()) {
             this._eventEnemyId = Number($dataMap.events[this._eventId].meta.enemy);
-            this._eventEnemyHp = $dataEnemies[this._eventEnemyId].params[0];
-            this._eventEnemyOrigHp = this._eventEnemyHp;
-            this._eventEnemyMp = $dataEnemies[this._eventEnemyId].params[1];
+
+            var _enemy = $dataEnemies[this._eventEnemyId];
+            this._eventEnemyHp = _enemy.params[0];
+            this._eventEnemyMp = _enemy.params[1];
             this._eventEnemyAlive = true;
             this._eventEnemyTouching = 0;
+
+            // is this enemy a prop?
+            // props cannot hurt the player, but the player can
+            // hurt them
+            if (_enemy.meta.prop)
+                this._prop = true;
+
             $dataMap.events[this._eventId].obj = this;
         }
     };
@@ -82,11 +90,12 @@
                         this.setTransparent(false);
                         this.setTransparent(true);
                         this.setTransparent(false);
-                        this._eventEnemyHp -= 100;
-                        $dataMap.events[this._eventId]._eventEnemyHp -= 100;
+                        var _dmg = $dataWeapons[$gameActors.actor(1)._equips[0]._itemId].params[2];
+                        this._eventEnemyHp -= _dmg;
+                        //$dataMap.events[this._eventId]._eventEnemyHp -= _dmg;
                     } else {
                         // enemy reaction time
-                        if (this._eventEnemyTouching >= 20) {
+                        if (this._eventEnemyTouching >= 20 && !this._prop) {
                             $gamePlayer.requestAnimation(1);
                             $gamePlayer.setTransparent(true);
                             $gamePlayer.setTransparent(false);
