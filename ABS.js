@@ -12,7 +12,7 @@
             SceneManager.goto(Scene_Map);
         }
         this.updateDocumentTitle();
-        $gamePlayer._currentSpell = 9;
+        $gamePlayer._currentSpell = 8;
     };
 
     var _GameEvent_initialize = Game_Event.prototype.initialize;
@@ -57,9 +57,17 @@
                         volume: 90
                     });
                     
-                    $gameMap.eraseEvent(this._eventId);
-                    this.erase();
+                    if ($dataMap.events[this._eventId].pages.length > 1) {
+                        var _mapId = $gameMap._mapId;
+                        $gameSelfSwitches.setValue([_mapId, this._eventId, 'A'], true);
+
+                    } else {
+                        $gameMap.eraseEvent(this._eventId);
+                        this.erase();
+                    }
                     this._eventEnemyAlive = false;
+                    //$dataMap.events[this._eventId] = $dataMap.events[1];
+                    //this.obj = $dataMap.events[1];
                 }
             }
         }
@@ -169,9 +177,9 @@
 
         // cycle through skills
         if (Input.isTriggered('pagedown')) {
-
+            $gamePlayer._currentSpell += 1;
         } else if (Input.isTriggered('pageup')) {
-
+            $gamePlayer._currentSpell -= 1;
         }
 
         this._healthBar.refresh();
@@ -194,10 +202,13 @@
         this.opacity = 0;
     };
 
-    HUD.prototype.refresh = function(){
-
+    HUD.prototype.refresh = function() {
         this.contents.clear();
-        this.drawActorHp($gameParty.leader(), 0, 0, 200)
+        if ($gamePlayer && $gamePlayer._currentSpell) {
+            this.drawActorHp($gameParty.leader(), 0, 0, 200);
+            this.drawActorMp($gameParty.leader(), 0, 48, 200);
+            this.drawText("Spell: " + $dataSkills[$gamePlayer._currentSpell].name, 0, 96, 200);
+        }
     };
 
     HUD.prototype.windowWidth = function(){
@@ -205,7 +216,7 @@
     };
 
     HUD.prototype.windowHeight = function(){
-        return 80;
+        return 240;
     };
 
 })();
