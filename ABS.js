@@ -1,5 +1,18 @@
-(function() {
-
+/*:
+ *
+ * @author Poltergasm
+ * @plugindesc Shitty ABS for traditional styled RPGs
+ *
+ * @param Enemy Defeat Sound
+ * @desc The SE that plays when an enemy has been defeated
+ * @default Attack3
+ * @type file
+ * @dir audio/se
+ * @require 1
+ *
+ */
+(function($) {
+    var  $_Params = PluginManager.parameters('ABS');
     /*Scene_Boot.prototype.start = function() {
         Scene_Base.prototype.start.call(this);
         SoundManager.preloadImportantSounds();
@@ -16,6 +29,7 @@
     };*/
 
     var ABS = ABS || {};
+    
     ABS.Player_Spells = {
         all: ['heal', 'fireball'],
         known: []
@@ -54,6 +68,8 @@
             this._eventEnemyMp = _enemy.params[1];
             this._eventEnemyAlive = true;
             this._eventEnemyTouching = 0;
+            this._skillId = _enemy.actions[0].skillId;
+            this._isFrozen = false;
 
             // is this enemy a prop?
             // props cannot hurt the player, but the player can
@@ -69,16 +85,32 @@
         return $dataMap.events[this._eventId].meta.enemy;
     };
 
+    Game_Event.prototype.isButton = function() {
+        return $dataMap.events[this._eventId].meta.button;
+    };
+
     var _GameEvent_update = Game_Event.prototype.update;
     Game_Event.prototype.update = function() {
         _GameEvent_update.call(this);
 
         this.updateAction();
+        if (this.isButton() && !this.pressed) {
+            var _evt = $gameMap.eventIdXy(this._x, this._y);
+            if (_evt && _evt != this._eventId) {
+                var _e = $dataMap.events[_evt];
+                if (_e.obj._isFrozen) {
+                    var _mapId = $gameMap._mapId;
+                    $gameSelfSwitches.setValue([_mapId, this._eventId, 'A'], true);
+                    this.pressed = true;
+                }
+            }
+        }
+
         if (this.isEnemy()) {
             if (this._eventEnemyAlive) {
                 if (this._eventEnemyHp <= 0) {
                     AudioManager.playSe({
-                        name: 'MDSFX_FoeDown_1_0',
+                        name: $_Params['Enemy Defeat Sound'],
                         pan: 0,
                         pitch: 100,
                         volume: 90
@@ -110,35 +142,32 @@
                     this._eventEnemyTouching += 1;
                     var _weaponId = $gameActors.actor(1)._equips[0]._itemId;
                     if (Input.isTriggered('ok') && _weaponId > 0) {  
-                        this.requestAnimation(121);
-                        /*AudioManager.playSe({
-                            name: 'MDSFX_FoeAtk_1_0',
-                            pan: 0,
-                            pitch: 100,
-                            volume: 55
-                        });*/
+                        this.requestAnimation($dataWeapons[_weaponId].animationId);
                         this.setMoveSpeed(6);
                         this.moveBackward();
                         this.moveBackward();
                         this.setMoveSpeed(4);
-                        this.setTransparent(true);
-                        this.setTransparent(false);
-                        this.setTransparent(true);
-                        this.setTransparent(false);
                         var _dmg = $dataWeapons[_weaponId].params[2];
                         this._eventEnemyHp -= _dmg;
-                        //$dataMap.events[this._eventId]._eventEnemyHp -= _dmg;
                     } else {
-                        if (this._eventEnemyTouching >= 20 && Number($gamePlayer._immunity) >= 60 && !this._prop) {
-                            $gamePlayer.requestAnimation(1);
-                            $gamePlayer.setTransparent(true);
-                            $gamePlayer.setTransparent(false);
-                            $gamePlayer.setTransparent(true);
-                            $gamePlayer.setTransparent(false);
-                            $gamePlayer.moveBackward();
-                            $gamePlayer.moveBackward();
-                            $gameActors.actor(1).gainHp(-50);
-                            $gamePlayer._immunity = 0;
+                        if (this._isFrozen) {
+                            if (this._eventEnemyTouching >= 40) {
+                                this.turnTowardPlayer();
+                                this.moveBackward();
+                            }
+                        } else {
+                            if (this._eventEnemyTouching >= 20 && Number($gamePlayer._immunity) >= 60 && !this._prop) {
+                                var animId = $dataSkills[$dataMap.events[this._eventId].obj._skillId].animationId;
+                                $gamePlayer.requestAnimation(animId);
+                                $gamePlayer.setTransparent(true);
+                                $gamePlayer.setTransparent(false);
+                                $gamePlayer.setTransparent(true);
+                                $gamePlayer.setTransparent(false);
+                                $gamePlayer.moveBackward();
+                                $gamePlayer.moveBackward();
+                                $gameActors.actor(1).gainHp(-50);
+                                $gamePlayer._immunity = 0;
+                            }
                         }
                     }
                 } else {
@@ -151,17 +180,55 @@
     var _SceneMap_start = Scene_Map.prototype.start;
     Scene_Map.prototype.start = function() {
         _SceneMap_start.call(this);
-        this._healthBar = new HUD(100,100);
-        this.addWindow(this._healthBar);
-        /*var bitmap = ImageManager.loadPicture('projectile');
+        /*var bitmap = ImageManager.loadPicture('top');
         var sprite = new Sprite(bitmap);
-        sprite.x = 100;
-        sprite.y = 100;
+        sprite.x = 0;
+        sprite.y = 0;
+        sprite.z = -20
         this.addChild(sprite);*/
+        this._healthBar = new HUD(100,100);
+        this._skillBox  = new SkillBox(400, 5);
+        this.addWindow(this._healthBar);
+        this.addWindow(this._skillBox);
+        
     };
+
+    function _eventInFrontOfPlayer() {
+        var _eid = -1;
+        switch(Number($gamePlayer._direction)) {
+            case 2:
+                // down
+                _eid = $gameMap.eventIdXy($gamePlayer.x, $gamePlayer.y+1);
+                break;
+            case 6:
+                // right
+                _eid = $gameMap.eventIdXy($gamePlayer.x+1, $gamePlayer.y); 
+                break;
+            case 8:
+                // up
+                _eid = $gameMap.eventIdXy($gamePlayer.x, $gamePlayer.y-1);
+                break;
+            case 4:
+                // left
+                _eid = $gameMap.eventIdXy($gamePlayer.x-1, $gamePlayer.y); 
+                break;
+        }
+
+        if (_eid > 0) {
+           var _ev = $dataMap.events[_eid];
+           if (_ev.meta.enemy) {
+                if (_ev.obj !== 'undefined') {
+                    return _ev;
+                }
+            }
+        }
+
+        return false;
+    }
 
     function _shootFireball(_skill) {
         var _eid = -1;
+        var _success = false;
         for (var i = 0; i < 5; i++) {
             switch(Number($gamePlayer._direction)) {
                 case 2:
@@ -185,13 +252,16 @@
             if (_eid > 0) {
                var _ev = $dataMap.events[_eid];
                if (_ev.meta.enemy) {
-                    if (_ev.obj !== 'undefined') {
+                    if (_ev.obj !== 'undefined' && _ev.obj._eventEnemyAlive) {
                         _ev.obj.requestAnimation(_skill.animationId);
                         _ev.obj._eventEnemyHp -= 100;
+                        _success = true;
                     }
                 }
             }
         }
+
+        return _success;
     }
 
     var _SceneMap_update = Scene_Map.prototype.update;
@@ -201,14 +271,27 @@
         if ($gamePlayer._immunity < 60) $gamePlayer._immunity += 1;
         if (Input.isTriggered('shift')) {
             var _skill = $dataSkills[$gamePlayer._skillId];
+            var _cost = Number(_skill.mpCost);
             if (_skill && _skill.meta) {
                 if (_skill.meta.heal) {
-                    $gameActors.actor(1).gainHp(Number(_skill.meta.heal));
-                    $gamePlayer.requestAnimation(_skill.animationId);
-                }
-
-                if (_skill.meta.fireball) {
-                    _shootFireball(_skill);
+                    if ($gameActors.actor(1)._mp >= _cost) {
+                        $gameActors.actor(1).gainHp(Number(_skill.meta.heal));
+                        $gameActors.actor(1).gainMp(-_cost);
+                        $gamePlayer.requestAnimation(_skill.animationId);
+                    }
+                } else if (_skill.meta.fireball) {
+                    if ($gameActors.actor(1)._mp >= _cost) {
+                        if (_shootFireball(_skill))
+                            $gameActors.actor(1).gainMp(-_cost);
+                    }
+                } else if (_skill.meta.ice) {
+                    var _ev = _eventInFrontOfPlayer();
+                    if (_ev) {
+                        _ev.obj._isFrozen = true;
+                        _ev.obj.requestAnimation(_skill.animationId);
+                        _ev.obj._locked = true;
+                        _ev.obj.setImage('!Crystal', 3);
+                    }
                 }
             }
         }
@@ -231,17 +314,30 @@
         }
 
         this._healthBar.refresh();
+        this._skillBox.refresh();
     };
 
     function HUD() {
         this.initialize.apply(this, arguments);
     }
 
+    function SkillBox() {
+        this.initialize.apply(this, arguments);
+    }
+
     // HUD
 
+    SkillBox.prototype = Object.create(Window_Base.prototype);
+    SkillBox.prototype.constructor = SkillBox;
     HUD.prototype = Object.create(Window_Base.prototype);
     HUD.prototype.constructor = HUD;
 
+
+    SkillBox.prototype.initialize = function(x, y) {
+        Window_Base.prototype.initialize.call(this, x, y, this.windowWidth(), this.windowHeight());
+        //this._value = 1;
+        this.refresh();
+    };
 
     HUD.prototype.initialize = function(x, y) {
         Window_Base.prototype.initialize.call(this, 0, 0, this.windowWidth(), this.windowHeight());
@@ -250,26 +346,27 @@
         this.opacity = 0;
     };
 
+    SkillBox.prototype.refresh = function() {
+        this.contents.clear();
+        if ($gamePlayer && $gamePlayer._skillId) {
+            if ($dataSkills[$gamePlayer._skillId]) {
+                this.drawIcon($dataSkills[$gamePlayer._skillId].iconIndex, 2, 2);
+            }
+        }
+    };
+
     HUD.prototype.refresh = function() {
         this.contents.clear();
         
         this.drawActorHp($gameParty.leader(), 0, 0, 200);
         this.drawActorMp($gameParty.leader(), 0, 48, 200);
-        if ($gamePlayer && $gamePlayer._skillId) {
-            if ($dataSkills[$gamePlayer._skillId]) {
-                this.drawText("Spell: " + $dataSkills[$gamePlayer._skillId].name, 0, 96, 200);
-            }
-        }
         //this.drawText("Skill: ", 0, 96, 100)
     };
 
-    HUD.prototype.windowWidth = function(){
-        return 240;
-    };
-
-    HUD.prototype.windowHeight = function(){
-        return 240;
-    };
+    SkillBox.prototype.windowWidth = function() { return 75; };
+    SkillBox.prototype.windowHeight = function() { return 75; };
+    HUD.prototype.windowWidth = function() { return 240; };
+    HUD.prototype.windowHeight = function() { return 240; };
 
 })();
 
