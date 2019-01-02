@@ -10,9 +10,27 @@
  * @dir audio/se
  * @require 1
  *
+ * @param Ice Magic
+ * @desc Ice Magic Parameters
+ * @default
+ *
+ * @param Ice Magic Spritesheet
+ * @desc The spritesheet to use for frozen enemies
+ * @default !Crystal
+ * @type file
+ * @dir img/characters
+ * @require 1
+ * @parent Ice Magic
+ *
+ * @param Ice Magic Index
+ * @desc The image index to use inside the spritesheet
+ * @default 3
+ * @type number
+ * @parent Ice Magic
+ *
  */
 (function($) {
-    var  $_Params = PluginManager.parameters('ABS');
+    var $_Params = PluginManager.parameters('ABS');
     /*Scene_Boot.prototype.start = function() {
         Scene_Base.prototype.start.call(this);
         SoundManager.preloadImportantSounds();
@@ -36,6 +54,13 @@
     };
 
     ABS.Projectiles = [];
+
+    var _Bitmap_Init = Bitmap.prototype.initialize;
+    Bitmap.prototype.initialize = function(width, height) {
+        _Bitmap_Init.call(this, width, height);
+
+        this.outlineColor = 'rgba(0, 0, 0, 1)';
+    };
 
     Sprite.prototype.createProjectile = function(x, y) {
         var _img = ImageManager.loadPicture("projectile");
@@ -271,26 +296,31 @@
         if ($gamePlayer._immunity < 60) $gamePlayer._immunity += 1;
         if (Input.isTriggered('shift')) {
             var _skill = $dataSkills[$gamePlayer._skillId];
-            var _cost = Number(_skill.mpCost);
+            
             if (_skill && _skill.meta) {
-                if (_skill.meta.heal) {
-                    if ($gameActors.actor(1)._mp >= _cost) {
+                var _cost = Number(_skill.mpCost);
+                if ($gameActors.actor(1)._mp >= _cost) {
+                    if (_skill.meta.heal) {
                         $gameActors.actor(1).gainHp(Number(_skill.meta.heal));
                         $gameActors.actor(1).gainMp(-_cost);
                         $gamePlayer.requestAnimation(_skill.animationId);
-                    }
-                } else if (_skill.meta.fireball) {
-                    if ($gameActors.actor(1)._mp >= _cost) {
+
+                    } else if (_skill.meta.fireball) {
                         if (_shootFireball(_skill))
                             $gameActors.actor(1).gainMp(-_cost);
-                    }
-                } else if (_skill.meta.ice) {
-                    var _ev = _eventInFrontOfPlayer();
-                    if (_ev) {
-                        _ev.obj._isFrozen = true;
-                        _ev.obj.requestAnimation(_skill.animationId);
-                        _ev.obj._locked = true;
-                        _ev.obj.setImage('!Crystal', 3);
+
+                    } else if (_skill.meta.ice) {
+                        var _ev = _eventInFrontOfPlayer();
+                        if (_ev) {
+                            _ev.obj._isFrozen = true;
+                            _ev.obj.requestAnimation(_skill.animationId);
+                            _ev.obj._locked = true;
+                            _ev.obj.setImage(
+                                $_Params['Ice Magic Spritesheet'],
+                                Number($_Params['Ice Magic Index'])
+                            );
+                            $gameActors.actor(1).gainMp(-_cost);
+                        }
                     }
                 }
             }
